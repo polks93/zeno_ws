@@ -1,0 +1,21 @@
+float32 latitude
+float32 longitude
+float32 reference
+uint8 mode
+uint16 width
+uint16 length
+int16 bearing
+uint8 payload_type
+float32 spacing
+float32 speed
+
+uint8 MODE_ALTITUDE = 1
+uint8 MODE_DEPTH = 0
+
+uint8 PAYLOAD_ACOUSTIC = 97
+uint8 PAYLOAD_OPTICAL = 111
+uint8 PAYLOAD_BOTH = 98
+---
+bool succeeded
+string cause
+

@@ -1,0 +1,34 @@
+lidar:
+  frequency: 25.0
+  num_beams: 90
+  max_range: 5.0
+  min_range: 0.5
+  FoV: 90.0
+
+ship:
+  # center: [12.5, 15.0]
+  center: [6, 6]
+  scale: 1.5
+
+workspace:
+  x_min: -1.0
+  x_max: 24.0
+  y_min: -1.0
+  y_max: 49.0
+
+zeno:
+  start_pose:
+    x: 0.0
+    y: 0.0
+    yaw: 45
+  
+  vel_max:
+    surge: 0.2  # m/s
+    sway: 0.2   # m/s
+    omega: 10   # deg/s
+
+  sim_controller:
+    yaw: 20.0
+    omega: 50.0
+    surge: 0.25
+    sway: 0.25

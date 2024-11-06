@@ -1,0 +1,2 @@
+MotionReference ref
+bool active

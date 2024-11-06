@@ -1,0 +1,17 @@
+<launch>
+    
+    <rosparam file = "$(find joystick_command)/config/control.yaml"/>
+    <node name="from_errors_to_tau" pkg ="joystick_command" type="from_errors_to_tau" output="screen"/>
+
+
+
+<!--     <rosparam file = "$(find joystick_command)/config/joystick_params.yaml"/>
+    <node name="joystick_command" pkg ="joystick_command" type="joystick_command" output="screen"/> -->
+
+
+
+
+     <node name="reference_generator" pkg ="joystick_command" type="reference_generator" output="screen"/>
+
+
+</launch>

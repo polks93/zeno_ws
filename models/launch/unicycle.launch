@@ -1,0 +1,10 @@
+<launch>
+    <rosparam file="$(find models)/params/common_params.yaml" command="load"/>
+
+    <!-- Nodo che simula un uniciclo -->
+    <node pkg="models" type="unicycle.py" name="unicycle" output="screen" />
+        
+    <!-- Aggiungo il simulatore del lidar sull'uniciclo -->
+    <node pkg="models" type="lidar_simulator.py" name="lidar_simulator" output="screen" />
+
+</launch>

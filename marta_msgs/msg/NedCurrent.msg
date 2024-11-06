@@ -1,0 +1,2 @@
+float64 current_north
+float64 current_east

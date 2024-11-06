@@ -1,0 +1,33 @@
+<launch>
+    <!-- Caricamento parametri nbv -->
+    <rosparam file="$(find nbv_planner)/params/nbv_params.yaml" command="load"/>
+
+    <!-- Caricamento parametri zeno e mappa -->
+    <rosparam file="$(find models)/params/common_params.yaml" command="load"/>
+
+    <!-- Comandi joystick -->
+    <include file="$(find joystick_command)/launch/Zeno_reference_laghetti.launch" />
+    
+    <!-- Nodo bridge tra simulatore di zeno e i miei nodi -->
+    <node pkg="models" type="sim_bridge.py" name="sim_bridge" output="screen" />
+
+    <!-- Simulatore LIDAR -->
+    <node pkg="models" type="lidar_simulator.py" name="lidar_simulator" output="screen" />
+
+    <!-- Gmapping -->
+    <include file="$(find models)/launch/mapping.launch" />
+
+    <!-- NBV planner -->
+    <node pkg="nbv_planner" type="nbv_planner.py" name="nbv_planner" output="screen" >
+        <param name="my_controller/distance"    value="0.1" />
+        <param name="my_controller/yaw"         value="1.0" />
+        <remap from="relative_error"            to="nbv/relative_error" />
+    </node>
+
+    <!-- Visualizzazione workspace -->
+    <node pkg="common_fun" type="workspace_pub.py" name="workspace_pub"/>
+
+    <!-- Rviz -->
+    <node pkg="rviz" type="rviz" name="rviz" output="screen" args="-d $(find models)/config/zeno_simulator.rviz"/>
+
+</launch>

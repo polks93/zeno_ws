@@ -1,0 +1,9 @@
+string status
+string mission_selected
+string mission_running
+string limits_selected
+float64 eta
+uint8 is_completed
+float64 remaining_time_mission
+float64 remaining_time_task
+

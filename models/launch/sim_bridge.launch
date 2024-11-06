@@ -1,0 +1,20 @@
+<launch>
+    
+    <!-- Comandi joystick -->
+    <include file="$(find joystick_command)/launch/Zeno_reference.launch" />
+    
+    <!-- Nodo bridge tra simulatore di zeno e i miei nodi -->
+    <node pkg="models" type="sim_bridge.py" name="sim_bridge" output="screen" />
+
+    <!-- NBV planner -->
+    <node pkg="nbv_planner" type="nbv_planner.py" name="nbv_planner" output="screen" >
+        <remap from="relative_error" to="nbv/relative_error" />
+    </node>
+
+    <!-- Simulatore LIDAR -->
+    <node pkg="models" type="lidar_simulator.py" name="lidar_simulator" output="screen" />
+
+    <!-- Gmapping -->
+    <include file="$(find models)/launch/mapping.launch" />
+    
+</launch>

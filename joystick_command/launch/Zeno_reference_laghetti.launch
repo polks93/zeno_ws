@@ -1,0 +1,8 @@
+<launch>
+    
+    <!-- LOADING YAML FILES -->
+    <rosparam file = "$(find joystick_command)/config/joystick_params.yaml"/>
+
+    <node name="joystick_command_laghetti" pkg ="joystick_command" type="joystick_command_laghetti" output="screen"/>
+
+</launch>

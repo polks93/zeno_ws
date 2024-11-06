@@ -1,0 +1,11 @@
+uint32 seq
+uint8 status
+uint8 channel
+
+uint8 M_STATUS_NOT_READY=0
+uint8 M_STATUS_READY=1
+uint8 M_STATUS_OK=2
+uint8 M_STATUS_FAILEDIM=3
+uint8 M_STATUS_CANCELLEDIM=4
+uint8 M_STATUS_DELIVEREDIM=5
+

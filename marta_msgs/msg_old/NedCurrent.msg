@@ -1,0 +1,2 @@
+float32 current_north
+float32 current_east

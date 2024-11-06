@@ -1,0 +1,12 @@
+<launch>
+
+    <!-- Caricamento parametri -->
+    <rosparam file="$(find models)/params/common_params.yaml" command="load" />
+
+    <!-- ZENO node -->
+    <node pkg="models" type="zeno.py" name="zeno_launch" output="screen" />
+        
+    <!-- Simulatore LiDAR -->
+    <node pkg="models" type="lidar_simulator.py" name="lidar_simulator" output="screen" />
+
+</launch>
