@@ -1,7 +1,8 @@
-#!/usr/bin/env python
+#!/home/paolo/miniconda3/envs/zenoenv/bin/python
 
 import rospy
 import numpy as np
+import torch
 
 from joystick_command.msg import Rel_error_joystick
 from marta_msgs.msg import NavStatus
@@ -42,13 +43,14 @@ def test_node():
     #     rate.sleep()
     rospy.sleep(1)
     done = False
-    
+    data = torch.load('/home/paolo/catkin_ws/src/obstacle/src/data.pth')
+
     while not rospy.is_shutdown():
-        if not done: 
-            msg.error_yaw = 20
-            pub.publish(msg)
-            rate.sleep()
-            done = True
+        # if not done: 
+        #     msg.error_yaw = 20
+        #     pub.publish(msg)
+        #     rate.sleep()
+        #     done = True
         # if msg_recived:
         #     yaw_error = wrapToPi(yaw_des - yaw)
         #     msg_recived = False
@@ -56,7 +58,8 @@ def test_node():
         #     msg.error_yaw = yaw_error
         #     pub.publish(msg)
         #     rate.sleep()
-            
+        rospy.loginfo(data['actor_state_dict'])
+        rate.sleep()
 
 if __name__ == '__main__':
     try:
