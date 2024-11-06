@@ -1,0 +1,18 @@
+<launch>
+    
+    <!-- Zeno + Lidar -->
+    <include file="$(find models)/launch/my_zeno.launch"/>
+
+    <!-- Nodo di gmapping -->
+    <include file="$(find models)/launch/mapping.launch"/>
+    
+    <!-- Nodo di navigazione -->
+    <node pkg="rl_agent" type="test_agent.py" name="rl_agent" output="screen" />
+
+    <!-- Visualizzazione workspace -->
+    <node pkg="common_fun" type="workspace_pub.py" name="workspace_pub" output="screen" />
+
+    <!-- Rviz -->
+    <node pkg="rviz" type="rviz" name="rviz" output="screen" args="-d $(find models)/config/unicycle.rviz"/>
+    
+</launch>
