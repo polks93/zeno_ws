@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 
-
 import rospy
 import tf
-from marta_msgs.msg         import MotionReference
+import numpy as np
+from marta_msgs.msg         import MotionReference, NavStatus
 from nav_msgs.msg           import Odometry
 from joystick_command.msg   import Rel_error_joystick
+from geodesy.utm            import fromLatLong
 
 class SimBridge():
     """ Nodo ROS che si interfaccia con il simulatore di ZENO:
-        - Riceve i dati di riferimento in terna NED (North-East-Down) e pubblica l'odometria in terna ENU (East-North-Up).
+        - Riceve i dati di riferimento in latitudine e longitudine e pubblica l'odometria in terna ENU (East-North-Up).
         - Riceve gli errori relativi in terna ENU e li pubblica in terna NED.
         - Pubblica la trasformazione odom -> base_link.
     """
@@ -17,53 +18,76 @@ class SimBridge():
         rospy.init_node('sim_bridge')
         self.rate = rospy.Rate(30)
         self.odom_recived = False
-
+        self.odom_gps_recived = False
+        self.navstatus_origin = None
         # Publisher dell'odometria
         self.pub_odom = rospy.Publisher('/odom', Odometry, queue_size=10)
-        self.odom_broadcaster   = tf.TransformBroadcaster()
+        self.odom_broadcaster  = tf.TransformBroadcaster()
         self.pub_rel_error = rospy.Publisher('/relative_error', Rel_error_joystick, queue_size=10)
 
         # Subscriber dei dati di riferimento
-        rospy.Subscriber('/model/vehicle/Reference', MotionReference, self.ref_callback)
         rospy.Subscriber('/nbv/relative_error', Rel_error_joystick, self.rel_error_callback)
+        rospy.Subscriber('/nav_status', NavStatus, self.nav_status_callback)
 
-    def ref_callback(self, msg):
+    def rel_error_callback(self, msg):
         """
-        Callback per la ricezione dei messaggi di posa e twist in terna NED.
-        Aggiorna lo stato interno dell'oggetto con i dati ricevuti e pubblica un messaggio
-        di odometria in terna ENU.
+        Callback per la gestione degli errori relativi.
+        Questa funzione prende gli errori in terna ENU (East-North-Up) dal messaggio ricevuto
+        e li pubblica in terna NED (North-East-Down) su /relative_error.
         Args:
-            msg: Il messaggio di riferimento ricevuto, contenente le informazioni di posizione
-                 e velocita` rispetto alla terna NED.
-        Attributi aggiornati:
-            self.odom_recived (bool): Flag che indica se e` stato ricevuto un messaggio di odometria.
-            self.x (float): Coordinata nord.
-            self.y (float): Coordinata est (negativa).
-            self.yaw (float): Angolo di imbardata (negativo).
-            self.v_surge (float): Velocita` di avanzamento lungo l'asse nord.
-            self.v_sway (float): Velocita` di avanzamento lungo l'asse est (negativa).
-            self.omega (float): Velocita` angolare lungo l'asse verticale (negativa).
-        Pubblica:
-            Odometry: Messaggio di odometria con le informazioni aggiornate di posizione e velocita` in terna ENU.
+            msg: Messaggio contenente gli errori in terna ENU.
         """
 
+        ned_error = Rel_error_joystick()
+    
+        ned_error.error_yaw             = - msg.error_yaw
+        ned_error.error_surge_speed     = msg.error_surge_speed
+        ned_error.error_sway_speed      = - msg.error_sway_speed
+
+        self.pub_rel_error.publish(ned_error)
+
+    def nav_status_callback(self, msg):
         
-        self.odom_recived = True
-        north       = msg.pn_wrt_home.north
-        east        = msg.pn_wrt_home.east
-        yaw_down    = msg.rpy.yaw
+        """
+        Callback associata al topic /nav_status.
+        - Quando viene ricevuto il primo messaggio, salva la posizione iniziale che verra` utilizzata come origine delle terne ENU e NED.
+        - Converte latitudine e longitudine in coordinate NED.
+        - Converte le velocità in terna NED (body)
+        - Infine converte posa in terna ENU e twist in terna ENU (body) e pubblica l'odometria.
+        """
 
-        v_surge_north   = msg.vb.surge
-        v_sway_east     = msg.vb.sway
-        omega_down      = msg.wb.heave
+        lat = msg.position.latitude
+        lon = msg.position.longitude
 
-        self.x           = north
-        self.y           = - east
-        self.yaw         = - yaw_down
-        self.v_surge     = v_surge_north
-        self.v_sway      = - v_sway_east
-        self.omega       = - omega_down
+        # Salva la posizione iniziale da usare come origine
+        if self.navstatus_origin is None:
+            self.navstatus_origin = fromLatLong(lat, lon)
+            return
+        
+        self.odom_recived = True 
 
+        # Converte latitudine e longitudine in coordinate NED
+        curr_position   = fromLatLong(lat, lon)
+        ned_x           = curr_position.northing - self.navstatus_origin.northing
+        ned_y           = curr_position.easting - self.navstatus_origin.easting
+        ned_yaw         = msg.orientation.yaw
+
+        # Converto le velocità in terna NED (body)
+        ned_v_surge     = msg.ned_speed.x * np.cos(ned_yaw) + msg.ned_speed.y * np.sin(ned_yaw)
+        ned_v_sway      = - msg.ned_speed.x * np.sin(ned_yaw) + msg.ned_speed.y * np.cos(ned_yaw)
+        ned_omega       = msg.omega_body.z
+        
+        # Converto la posa in terna ENU
+        self.x          = ned_x
+        self.y          = - ned_y
+        self.yaw        = - ned_yaw
+
+        # Converto il twist in termina ENU (body)
+        self.v_surge    = ned_v_surge
+        self.v_sway     = - ned_v_sway
+        self.omega      = - ned_omega
+
+        # Pubblica l'odometria
         odom = Odometry()
         odom.header.stamp = rospy.Time.now()
         odom.header.frame_id = 'odom'
@@ -82,23 +106,6 @@ class SimBridge():
         odom.twist.twist.angular.z = self.omega
 
         self.pub_odom.publish(odom)
-
-    def rel_error_callback(self, msg):
-        """
-        Callback per la gestione degli errori relativi.
-        Questa funzione prende gli errori in terna ENU (East-North-Up) dal messaggio ricevuto
-        e li pubblica in terna NED (North-East-Down) su /relative_error.
-        Args:
-            msg: Messaggio contenente gli errori in terna ENU.
-        """
-
-        ned_error = Rel_error_joystick()
-    
-        ned_error.error_yaw             = - msg.error_yaw
-        ned_error.error_surge_speed     = msg.error_surge_speed
-        ned_error.error_sway_speed      = - msg.error_sway_speed
-
-        self.pub_rel_error.publish(ned_error)
 
     def publish_tf(self):
         """
