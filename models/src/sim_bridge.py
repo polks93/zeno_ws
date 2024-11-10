@@ -3,8 +3,9 @@
 import rospy
 import tf
 import numpy as np
-from marta_msgs.msg         import MotionReference, NavStatus
+from marta_msgs.msg         import NavStatus
 from nav_msgs.msg           import Odometry
+from std_msgs.msg           import String
 from joystick_command.msg   import Rel_error_joystick
 from geodesy.utm            import fromLatLong
 
@@ -17,9 +18,10 @@ class SimBridge():
     def __init__(self):
         rospy.init_node('sim_bridge')
         self.rate = rospy.Rate(30)
-        self.odom_recived = False
-        self.odom_gps_recived = False
-        self.navstatus_origin = None
+        self.start              = False
+        self.odom_recived       = False
+        self.odom_gps_recived   = False
+        self.navstatus_origin   = None
         # Publisher dell'odometria
         self.pub_odom = rospy.Publisher('/odom', Odometry, queue_size=10)
         self.odom_broadcaster  = tf.TransformBroadcaster()
@@ -28,6 +30,11 @@ class SimBridge():
         # Subscriber dei dati di riferimento
         rospy.Subscriber('/nbv/relative_error', Rel_error_joystick, self.rel_error_callback)
         rospy.Subscriber('/nav_status', NavStatus, self.nav_status_callback)
+        rospy.Subscriber('/start', String, self.start_callback)
+
+
+    def start_callback(self, msg):
+        self.start = True
 
     def rel_error_callback(self, msg):
         """
@@ -37,7 +44,10 @@ class SimBridge():
         Args:
             msg: Messaggio contenente gli errori in terna ENU.
         """
-
+        if not self.start:
+            rospy.logwarn("SimBridge: received relative error before start")
+            return
+        
         ned_error = Rel_error_joystick()
     
         ned_error.error_yaw             = - msg.error_yaw
@@ -52,10 +62,12 @@ class SimBridge():
         Callback associata al topic /nav_status.
         - Quando viene ricevuto il primo messaggio, salva la posizione iniziale che verra` utilizzata come origine delle terne ENU e NED.
         - Converte latitudine e longitudine in coordinate NED.
-        - Converte le velocità in terna NED (body)
+        - Converte le velocita` in terna NED (body)
         - Infine converte posa in terna ENU e twist in terna ENU (body) e pubblica l'odometria.
         """
-
+        if not self.start:
+            return
+        
         lat = msg.position.latitude
         lon = msg.position.longitude
 
@@ -72,7 +84,7 @@ class SimBridge():
         ned_y           = curr_position.easting - self.navstatus_origin.easting
         ned_yaw         = msg.orientation.yaw
 
-        # Converto le velocità in terna NED (body)
+        # Converto le velocita` in terna NED (body)
         ned_v_surge     = msg.ned_speed.x * np.cos(ned_yaw) + msg.ned_speed.y * np.sin(ned_yaw)
         ned_v_sway      = - msg.ned_speed.x * np.sin(ned_yaw) + msg.ned_speed.y * np.cos(ned_yaw)
         ned_omega       = msg.omega_body.z
@@ -122,9 +134,10 @@ class SimBridge():
 
     def run(self):
         while not rospy.is_shutdown():
-            if self.odom_recived:
-                self.odom_recived = False
-                self.publish_tf()
+            if self.start:
+                if self.odom_recived:
+                    self.odom_recived = False
+                    self.publish_tf()
             self.rate.sleep()
 
 

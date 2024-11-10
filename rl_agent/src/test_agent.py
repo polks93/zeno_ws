@@ -14,7 +14,7 @@ from joystick_command.msg   import Rel_error_joystick
 class Agent:
     def __init__(self):
         rospy.init_node('rl_agent')
-        self.rate = rospy.Rate(3)
+        self.rate = rospy.Rate(1)       # 1 Hz
 
         # Import parametri del lidar
         self.max_range = rospy.get_param('/lidar/max_range', 1.0)
@@ -23,7 +23,8 @@ class Agent:
         v_surge_max    = rospy.get_param('/zeno/vel_max/surge', 0.2)                    # m/s
         v_sway_max     = rospy.get_param('/zeno/vel_max/sway', 0.2)                     # m/s
         omega_max      = np.deg2rad(rospy.get_param('/zeno/vel_max/omega', 10.0))       # rad/s   
-        self.zeno_limits = {'v_surge_max': v_surge_max, 'v_sway_max': v_sway_max, 'omega_max': omega_max, 'yaw_rel_max': np.pi/4}
+        # self.zeno_limits = {'v_surge_max': v_surge_max, 'v_sway_max': v_sway_max, 'omega_max': omega_max, 'yaw_rel_max': np.pi/4}
+        self.zeno_limits = {'v_surge_max': 0.1, 'v_sway_max': 0.05, 'omega_max': omega_max, 'yaw_rel_max': np.pi/4}
 
         # Import limiti workspace
         xmin = rospy.get_param("/workspace/x_min", 0.0)
@@ -50,17 +51,19 @@ class Agent:
         """
         Inizializzio l'agente AC con i parametri salvati nel file .pth
         """
-        self.data = torch.load('/home/paolo/catkin_ws/src/rl_agent/src/data.pth')
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.state_dim = self.data['state_dim']
-        action_dim = self.data['action_dim']
-        max_episodes = self.data['max_episodes']
+        # Import parametri agente
+        self.data       = torch.load('/home/paolo/catkin_ws/src/rl_agent/weights/ShipRovCont-v0_750_ep_final.pth')
+        self.device     = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        buffer_params = self.data['buffer_params']
-        noise_type = self.data['noise_type']
-        noise_params = self.data['noise_params']
-        AC_params = self.data['AC_params']
+        self.state_dim  = self.data['state_dim']
+        action_dim      = self.data['action_dim']
+        max_episodes    = self.data['max_episodes']
+        buffer_params   = self.data['buffer_params']
+        noise_type      = self.data['noise_type']
+        noise_params    = self.data['noise_params']
+        AC_params       = self.data['AC_params']
 
+        # Inizializzo l'agente
         self.agent = AC_agent(    
             state_size=self.state_dim,
             action_size=action_dim,
@@ -71,6 +74,10 @@ class Agent:
             AC_params=AC_params,
             buffer_params=buffer_params
         )
+
+        # Carico i pesi della rete neurale dell'attore
+        self.agent.actor.load_state_dict(self.data['actor_state_dict'])
+
 
     def start_callback(self, msg):
         self.start = True
@@ -138,13 +145,13 @@ class Agent:
 
         rospy.loginfo(state)
 
-        state = np.random.random(self.state_dim)
+        # state = np.random.random(self.state_dim)
 
         # Selezione dell'azione che sarà compresa tra -1 e 1
-        action = self.agent.act(state, add_noise=True)
-        action[0] = 0.0
-        action[1] = 0.0
-        action[2] = np.pi/4
+        action = self.agent.act(state, add_noise=False)
+        # action[0] = 0.0
+        # action[1] = 0.0
+        # action[2] = np.pi/4
 
         # Riporto i valori delle azioni ai limiti fisici di Zeno
         v_surge = action[0] * self.zeno_limits['v_surge_max']

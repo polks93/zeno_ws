@@ -1,0 +1,28 @@
+<launch>
+    <!-- Caricamento parametri zeno e mappa -->
+    <rosparam file="$(find models)/params/common_params.yaml" command="load"/>
+
+    <!-- Comandi joystick -->
+    <include file="$(find joystick_command)/launch/Zeno_reference.launch" />
+    
+    <!-- Nodo bridge tra simulatore di zeno e i miei nodi -->
+    <node pkg="models" type="sim_bridge.py" name="sim_bridge" output="screen" />
+
+    <!-- Simulatore LIDAR -->
+    <node pkg="models" type="lidar_simulator.py" name="lidar_simulator" output="screen" />
+
+    <!-- Gmapping -->
+    <include file="$(find models)/launch/mapping.launch" />
+    
+    <!-- Nodo di navigazione -->
+    <node pkg="rl_agent" type="test_agent.py" name="rl_agent" output="screen" >
+        <remap from="relative_error"            to="nbv/relative_error" />  
+    </node>
+
+    <!-- Visualizzazione workspace -->
+    <node pkg="common_fun" type="workspace_pub.py" name="workspace_pub" output="screen" />
+
+    <!-- Rviz -->
+    <node pkg="rviz" type="rviz" name="rviz" output="screen" args="-d $(find models)/config/unicycle.rviz"/>
+    
+</launch>
