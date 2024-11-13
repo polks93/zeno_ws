@@ -336,6 +336,10 @@ def create_markers_msg(occupancy_grid, all_cells, color=[1.0, 0.0, 0.0]):
     if all_cells is None:
         return marker_array
     
+    if color == (0,1,0):
+        z = - occupancy_grid.resolution / 2
+    else:
+        z = 0.0
     for i, cell in enumerate(all_cells):
         cell_x, cell_y = occupancy_grid.grid_to_world(cell)  # Converti da [riga, colonna] a coordinate del mondo
         marker = Marker()
@@ -347,12 +351,12 @@ def create_markers_msg(occupancy_grid, all_cells, color=[1.0, 0.0, 0.0]):
         marker.action = Marker.ADD
         marker.pose.position.x = cell_x
         marker.pose.position.y = cell_y
-        marker.pose.position.z = 0.0
+        marker.pose.position.z = z
         marker.pose.orientation.w = 1.0
-        marker.scale.x = occupancy_grid.resolution
-        marker.scale.y = occupancy_grid.resolution
-        marker.scale.z = occupancy_grid.resolution
-        marker.color.a = 0.4  # Opacita
+        marker.scale.x = occupancy_grid.resolution / 2
+        marker.scale.y = occupancy_grid.resolution / 2
+        marker.scale.z = occupancy_grid.resolution / 2 
+        marker.color.a = 1  # Opacita
         marker.color.r = color[0]  
         marker.color.g = color[1]
         marker.color.b = color[2]

@@ -6,9 +6,15 @@ from geometry_msgs.msg import Point
 
 def rectangle_marker():
     rospy.init_node('rectangle_marker_node')
+    rate = rospy.Rate(1)  # 1 Hz
     marker_pub = rospy.Publisher('rectangle_marker', Marker, queue_size=10)
+    
+    workspace_params = ["/workspace/x_min", "/workspace/y_min", "/workspace/x_max", "/workspace/y_max"]
 
-    # Import parametri globali
+    while not all(rospy.has_param(param) for param in workspace_params) and not rospy.is_shutdown():
+        rospy.loginfo("Attendo limiti workspace ... ")
+        rate.sleep()
+        
     xmin = rospy.get_param("/workspace/x_min", 0.0)
     ymin = rospy.get_param("/workspace/y_min", 0.0)
     xmax = rospy.get_param("/workspace/x_max", 10.0)
@@ -40,7 +46,7 @@ def rectangle_marker():
     marker.color.a = 1.0
 
     # Loop per pubblicare il marker
-    rate = rospy.Rate(1)  # 1 Hz
+
 
     while not rospy.is_shutdown():
         marker.header.stamp = rospy.Time.now()

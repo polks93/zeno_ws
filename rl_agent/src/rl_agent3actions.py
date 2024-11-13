@@ -27,6 +27,11 @@ class Agent:
         self.zeno_limits = {'v_surge_max': 0.1, 'v_sway_max': 0.05, 'omega_max': omega_max, 'yaw_rel_max': np.pi/4}
 
         # Import limiti workspace
+        workspace_params = ["/workspace/x_min", "/workspace/y_min", "/workspace/x_max", "/workspace/y_max"]
+        while not all(rospy.has_param(param) for param in workspace_params) and not rospy.is_shutdown():
+            rospy.loginfo("Attendo limiti workspace ... ")
+            self.rate.sleep()
+            
         xmin = rospy.get_param("/workspace/x_min", 0.0)
         ymin = rospy.get_param("/workspace/y_min", 0.0)
         xmax = rospy.get_param("/workspace/x_max", 10.0)
@@ -116,7 +121,7 @@ class Agent:
         omega_norm      = (1 +  omega   / self.zeno_limits['omega_max']) / 2
 
         # Salvo i valori normalizzati 
-        self.norm_pose = np.array([x_norm, y_norm, yaw_norm])
+        self.norm_pose  = np.array([x_norm, y_norm, yaw_norm])
         self.norm_twist = np.array([v_surge_norm, v_sway_norm, omega_norm])
 
     def scan_callback(self, msg):
@@ -138,20 +143,14 @@ class Agent:
         e usa la rete neurale per calcolare l'azione da inviare.
         """
 
-        state = np.zeros(self.state_dim)
+        # Creo lo stato normalizzato per la rete neurale
+        state       = np.zeros(self.state_dim)
         state[:3]   = self.norm_pose
         state[3:6]  = self.norm_twist
         state[6:]   = self.selected_ranges
 
-        rospy.loginfo(state)
-
-        # state = np.random.random(self.state_dim)
-
         # Selezione dell'azione che sarà compresa tra -1 e 1
         action = self.agent.act(state, add_noise=False)
-        # action[0] = 0.0
-        # action[1] = 0.0
-        # action[2] = np.pi/4
 
         # Riporto i valori delle azioni ai limiti fisici di Zeno
         v_surge = action[0] * self.zeno_limits['v_surge_max']

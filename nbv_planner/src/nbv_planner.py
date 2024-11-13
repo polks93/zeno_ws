@@ -93,6 +93,12 @@ class NbvPlanner():
         self.K_yaw      = rospy.get_param('~my_controller/yaw', 1.0)
 
         # Import limiti workspace
+        workspace_params = ["/workspace/x_min", "/workspace/y_min", "/workspace/x_max", "/workspace/y_max"]
+
+        while not all(rospy.has_param(param) for param in workspace_params) and not rospy.is_shutdown():
+            rospy.loginfo("Attendo limiti workspace ... ")
+            self.rate.sleep()
+            
         xmin = rospy.get_param("/workspace/x_min", 0.0)
         ymin = rospy.get_param("/workspace/y_min", 0.0)
         xmax = rospy.get_param("/workspace/x_max", 10.0)
@@ -113,7 +119,7 @@ class NbvPlanner():
         self.next_state         = None
 
         self.publish_cell_on    = True
-        self.publish_map_on     = True
+        self.publish_map_on     = False
         self.publish_samples_on = True
         self.publish_path_on    = True
 
@@ -187,11 +193,19 @@ class NbvPlanner():
         rispetto alla posizione iniziale del robot.
         Inoltre effettua il passaggio allo stato 'init'.
         """
+        if msg.data == 'move':
+            self.move = True
+            return
+
         if msg.data == 'test':
             self.next_state = 'test'
             self.test_angle = 10
             return
-     
+        
+        if msg.data == 'save_coordinates':
+            self.next_state = 'save_coordinates'
+            return
+        
         if self.pose is not None:
 
             # Bool per il mezzo giro completato
@@ -242,6 +256,13 @@ class NbvPlanner():
         del campione passato come argomento.
         Se il campione non e` passato, usa la posizione corrente del robot.
         """
+        delete_marker = Marker()
+        delete_marker.action = Marker.DELETEALL
+        marker_array = MarkerArray()
+        marker_array.markers.append(delete_marker)
+        self.pub_contour_cells.publish(marker_array)
+        self.pub_frontier_cells.publish(marker_array)
+        self.pub_visible_cells.publish(marker_array)
 
         if pose is None:
             pose = self.pose
@@ -359,7 +380,11 @@ class NbvPlanner():
 
         # Passo al prossimo stato
         self.next_state = 'moving_to_nbv'
-
+        
+        # self.move = False
+        # while not self.move and not rospy.is_shutdown():
+        #     self.publish_samples_markers(samples, value_function)
+        #     rospy.sleep(10)
         # Come output ho il campione migliore
         return id_best_sample, tree
     
@@ -646,6 +671,13 @@ class NbvPlanner():
                 self.rotate_to_angle(self.test_angle)
                 rospy.loginfo("Rotation done")
                 self.next_state = 'idle'
+
+            elif self.curr_state == 'save_coordinates':
+                xmin, ymin, xmax, ymax = self.workspace
+                if self.pose is not None:
+                    # self.rotate_to_angle(180)
+                    self.moving_to_pose(np.array([xmax, ymax, 0.0]))
+                    self.next_state = 'idle'
 
             # DONE: la missione e` completata, termino il nodo
             elif self.curr_state == 'done':

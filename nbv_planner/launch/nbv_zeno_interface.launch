@@ -25,7 +25,7 @@
     </node>
 
     <!-- Visualizzazione workspace -->
-    <node pkg="common_fun" type="workspace_pub.py" name="workspace_pub"/>
+    <node pkg="common_fun" type="workspace_pub.py" name="workspace_pub" output="screen"/>
 
     <!-- Rviz -->
     <node pkg="rviz" type="rviz" name="rviz" output="screen" args="-d $(find models)/config/zeno_simulator.rviz"/>

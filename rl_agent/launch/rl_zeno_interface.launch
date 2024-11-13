@@ -15,7 +15,7 @@
     <include file="$(find models)/launch/mapping.launch" />
     
     <!-- Nodo di navigazione -->
-    <node pkg="rl_agent" type="test_agent.py" name="rl_agent" output="screen" >
+    <node pkg="rl_agent" type="rl_agent3actions.py" name="rl_agent" output="screen" >
         <remap from="relative_error"            to="nbv/relative_error" />  
     </node>
 

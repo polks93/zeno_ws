@@ -2,6 +2,12 @@
     <!-- Caricamento parametri nbv -->
     <rosparam file="$(find nbv_planner)/params/nbv_params.yaml" command="load"/>
     
+    <!-- Carico confini workspace -->
+    <param name="/workspace/x_min" value="-1.0"/>
+    <param name="/workspace/x_max" value="14.0"/>
+    <param name="/workspace/y_min" value="-1.0"/>
+    <param name="/workspace/y_max" value="14.0"/>
+
     <!-- Zeno + Lidar -->
     <include file="$(find models)/launch/my_zeno.launch"/>
 

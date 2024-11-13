@@ -7,7 +7,7 @@ import tf
 from obstacle_simulation import ShipObstacle, lidar
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, String
 
 class Lidar_sim():
     """
@@ -35,14 +35,27 @@ class Lidar_sim():
         max_range           = rospy.get_param('/lidar/max_range', 5.0)
         self.min_range      = rospy.get_param('/lidar/min_range', 0.1)
         FoV_deg             = rospy.get_param('/lidar/FoV', 360.0)
-        ship_center         = rospy.get_param('/ship/center', (0,0))
+
+        # ship_center         = rospy.get_param('/ship/center', (0,0))
         ship_scale_factor   = rospy.get_param('/ship/scale', 0.9)
 
         self.scan_time      = 1.0 / self.Hz
         self.rate           = rospy.Rate(self.Hz)
 
         self.lidar_params   = {'n_beams': n_beams, 'max_range': max_range, 'FoV': np.deg2rad(FoV_deg)}
-        
+
+        workspace_params = ["/workspace/x_min", "/workspace/y_min", "/workspace/x_max", "/workspace/y_max"]
+        while not all(rospy.has_param(param) for param in workspace_params) and not rospy.is_shutdown():
+            rospy.loginfo("Attendo limiti workspace ... ")
+            self.rate.sleep()
+            
+        # Confini workspace  
+        self.xmin                = rospy.get_param("/workspace/x_min", 0.0)
+        self.ymin                = rospy.get_param("/workspace/y_min", 0.0)
+        self.xmax                = rospy.get_param("/workspace/x_max", 10.0)
+        self.ymax                = rospy.get_param("/workspace/y_max", 10.0)
+
+        ship_center         = ((self.xmin + self.xmax) / 2, (self.ymin + self.ymax) / 2)
         self.obstacle       = ShipObstacle(ship_center, scale=ship_scale_factor)
         self.segments       = self.obstacle.copy_segments()
         self.n_segments     = len(self.segments)
@@ -51,7 +64,7 @@ class Lidar_sim():
         rospy.Subscriber("/odom", Odometry, self.odom_callback)
         self.pub_lidar = rospy.Publisher("/scan", LaserScan, queue_size=1)
         self.pub_coverage = rospy.Publisher("/coverage", Float64, queue_size=1)
-
+        self.pub_abort    = rospy.Publisher("/abort", String, queue_size=1)
     def odom_callback(self, msg):
         """
         Callback function for the odometry topic.
@@ -121,6 +134,20 @@ class Lidar_sim():
         self.pub_lidar.publish(scan_msg)
         self.pub_coverage.publish(coverage)
 
+
+    def out_of_bounds_check(self):
+        x = self.pose[0]
+        y = self.pose[1]
+
+        if x < self.xmin or x > self.xmax or y < self.ymin or y > self.ymax:
+            msg = String()
+            msg.data = "Out of bounds"
+            self.pub_abort.publish(msg)
+            
+    def collision_check(self):
+        x = self.pose[0]
+        y = self.pose[1]
+        
     def run(self):
         """
         Esegue il ciclo principale del nodo ROS.
@@ -131,6 +158,7 @@ class Lidar_sim():
         while not rospy.is_shutdown():
             if self.pose is not None:
                 self.publish_lidar_data()
+                self.out_of_bounds_check()
             self.rate.sleep()
 
 

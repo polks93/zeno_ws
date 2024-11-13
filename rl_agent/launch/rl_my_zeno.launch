@@ -1,4 +1,9 @@
 <launch>
+    <!-- Carico confini workspace -->
+    <param name="/workspace/x_min" value="-1.0"/>
+    <param name="/workspace/x_max" value="14.0"/>
+    <param name="/workspace/y_min" value="-1.0"/>
+    <param name="/workspace/y_max" value="14.0"/> 
     
     <!-- Zeno + Lidar -->
     <include file="$(find models)/launch/my_zeno.launch"/>
@@ -7,7 +12,7 @@
     <include file="$(find models)/launch/mapping.launch"/>
     
     <!-- Nodo di navigazione -->
-    <node pkg="rl_agent" type="test_agent.py" name="rl_agent" output="screen" />
+    <node pkg="rl_agent" type="rl_agent3actions.py" name="rl_agent" output="screen" />
 
     <!-- Visualizzazione workspace -->
     <node pkg="common_fun" type="workspace_pub.py" name="workspace_pub" output="screen" />

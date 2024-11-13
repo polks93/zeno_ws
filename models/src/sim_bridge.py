@@ -3,12 +3,13 @@
 import rospy
 import tf
 import numpy as np
+import yaml
 from marta_msgs.msg         import NavStatus
 from nav_msgs.msg           import Odometry
 from std_msgs.msg           import String
 from joystick_command.msg   import Rel_error_joystick
 from geodesy.utm            import fromLatLong
-
+ 
 class SimBridge():
     """ Nodo ROS che si interfaccia con il simulatore di ZENO:
         - Riceve i dati di riferimento in latitudine e longitudine e pubblica l'odometria in terna ENU (East-North-Up).
@@ -32,6 +33,17 @@ class SimBridge():
         rospy.Subscriber('/nav_status', NavStatus, self.nav_status_callback)
         rospy.Subscriber('/start', String, self.start_callback)
 
+        with open("/home/paolo/catkin_ws/src/models/params/Pmin.yaml", 'r') as file:
+            Pmin = yaml.safe_load(file)
+            lat_min = Pmin['latitude']
+            lon_min = Pmin['longitude']
+            self.Pmin = fromLatLong(lat_min, lon_min)
+
+        with open("/home/paolo/catkin_ws/src/models/params/Pmax.yaml", 'r') as file:
+            Pmax = yaml.safe_load(file)
+            lat_max = Pmax['latitude']
+            lon_max = Pmax['longitude']
+            self.Pmax = fromLatLong(lat_max, lon_max)
 
     def start_callback(self, msg):
         self.start = True
@@ -71,9 +83,30 @@ class SimBridge():
         lat = msg.position.latitude
         lon = msg.position.longitude
 
-        # Salva la posizione iniziale da usare come origine
+        # Salva la posizione iniziale da usare come origine e carica i confini del workspace
         if self.navstatus_origin is None:
             self.navstatus_origin = fromLatLong(lat, lon)
+
+            # Calcola i confini del workspace
+            ned_x1 = self.Pmin.northing - self.navstatus_origin.northing
+            ned_y1 = self.Pmin.easting - self.navstatus_origin.easting
+            enu_x1 = ned_x1
+            enu_y1 = - ned_y1
+            ned_x2 = self.Pmax.northing - self.navstatus_origin.northing
+            ned_y2 = self.Pmax.easting - self.navstatus_origin.easting
+            enu_x2 = ned_x2
+            enu_y2 = - ned_y2
+
+            xmin = min(enu_x1, enu_x2)
+            ymin = min(enu_y1, enu_y2)
+            xmax = max(enu_x1, enu_x2)
+            ymax = max(enu_y1, enu_y2)
+            rospy.loginfo("xmin: %s, ymin: %s, xmax: %s, ymax: %s", xmin, ymin, xmax, ymax)
+
+            rospy.set_param('/workspace/x_min', xmin)
+            rospy.set_param('/workspace/y_min', ymin)
+            rospy.set_param('/workspace/x_max', xmax)
+            rospy.set_param('/workspace/y_max', ymax)
             return
         
         self.odom_recived = True 
