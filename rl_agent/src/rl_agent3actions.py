@@ -1,4 +1,4 @@
-#!/home/paolo/miniconda3/envs/zenoenv/bin/python
+#!/usr/bin/env python3
 
 import rospy
 import torch

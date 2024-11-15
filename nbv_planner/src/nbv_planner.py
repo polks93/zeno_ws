@@ -119,7 +119,7 @@ class NbvPlanner():
         self.next_state         = None
 
         self.publish_cell_on    = True
-        self.publish_map_on     = False
+        self.publish_map_on     = True
         self.publish_samples_on = True
         self.publish_path_on    = True
 
