@@ -8,6 +8,7 @@ from obstacle_simulation import ShipObstacle, lidar
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float64, String
+from models.msg import Coverage
 
 class Lidar_sim():
     """
@@ -60,11 +61,18 @@ class Lidar_sim():
         self.segments       = self.obstacle.copy_segments()
         self.n_segments     = len(self.segments)
         self.pose           = None
+        self.start          = False
 
+        rospy.Subscriber("/start_scan", String, self.start_callback)
         rospy.Subscriber("/odom", Odometry, self.odom_callback)
-        self.pub_lidar = rospy.Publisher("/scan", LaserScan, queue_size=1)
-        self.pub_coverage = rospy.Publisher("/coverage", Float64, queue_size=1)
-        self.pub_abort    = rospy.Publisher("/abort", String, queue_size=1)
+
+        self.pub_lidar      = rospy.Publisher("/scan", LaserScan, queue_size=1)
+        self.pub_coverage   = rospy.Publisher("/coverage", Coverage, queue_size=1)
+        self.pub_abort      = rospy.Publisher("/abort", String, queue_size=1)
+
+    def start_callback(self, msg):
+        self.start = True
+
     def odom_callback(self, msg):
         """
         Callback function for the odometry topic.
@@ -127,12 +135,16 @@ class Lidar_sim():
         scan_msg.ranges             = ranges
         scan_msg.intensities        = [0.0]*self.lidar_params['n_beams']
 
-        coverage_msg = Float64()
-        coverage_msg.data = coverage
+
 
         # Pubblica il messaggio LaserScan e il messaggio di coverage
         self.pub_lidar.publish(scan_msg)
-        self.pub_coverage.publish(coverage)
+
+        coverage_msg = Coverage()
+        coverage_msg.header.stamp = rospy.Time.now()
+        coverage_msg.data = coverage
+
+        self.pub_coverage.publish(coverage_msg)
 
 
     def out_of_bounds_check(self):
@@ -156,7 +168,7 @@ class Lidar_sim():
         Alla fine di ogni iterazione, il ciclo attende per un intervallo di tempo specificato dall'attributo `rate`.
         """
         while not rospy.is_shutdown():
-            if self.pose is not None:
+            if self.pose is not None and self.start:
                 self.publish_lidar_data()
                 self.out_of_bounds_check()
             self.rate.sleep()

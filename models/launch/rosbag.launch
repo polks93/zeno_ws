@@ -1,0 +1,13 @@
+<launch>
+    <!-- Percorso e base del nome -->
+    <arg name="path"        default="$(env HOME)"/>
+    <arg name="base_name"   default="bag" />
+
+    <!-- Nodo per registrare il rosbag -->
+    <!-- <node pkg="rosbag" type="record" name="rosbag_record" required="true" 
+          args="-o $(arg path)/$(arg base_name) /tf /odom /coverage /map /relative_error /scan /nbv/relative_error /rectangle_marker /nav_status /best_samples /contour_cells /frontier_cells /samples /my_map /pose_path /visible_cells /start_bridge /start /start_scan /test" 
+          output="screen" /> -->
+
+    <node pkg="rosbag" type="record" name="rosbag_record" required="true" 
+          args="-o $(arg path)/$(arg base_name) -a" output="screen" />
+</launch>

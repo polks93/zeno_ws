@@ -24,5 +24,11 @@
 
     <!-- Rviz -->
     <node pkg="rviz" type="rviz" name="rviz" output="screen" args="-d $(find models)/config/unicycle.rviz"/>
-    
+
+    <!-- ROSBAG -->
+    <include file="$(find models)/launch/rosbag.launch" >
+        <arg name="path" value="/media/paolo/kingstone" />
+        <arg name="base_name" value="RL_bag" />
+
+    </include>
 </launch>

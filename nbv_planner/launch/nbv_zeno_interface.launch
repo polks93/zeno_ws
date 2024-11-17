@@ -31,7 +31,11 @@
     <node pkg="rviz" type="rviz" name="rviz" output="screen" args="-d $(find models)/config/zeno_simulator.rviz"/>
 
 
-
+    <!-- ROSBAG -->
+    <include file="$(find models)/launch/rosbag.launch" >
+        <arg name="path" value="/media/paolo/kingstone" />
+        <arg name="base_name" value="NBV_bag" />
+    </include>
 
 <!-- ROSBAG
 <node pkg args="-e (topic da registrare) -x (esclude) -a (tutte)">

@@ -10,7 +10,7 @@ from nav_msgs.msg           import OccupancyGrid
 from gridmap_functions      import OccupancyGridWrapper, find_visible_cells, find_frontier_cells, find_contour_cells, find_occ_cells, create_markers_msg
 from RRT_functions          import generate_RRT_samples, generate_pose_marker, generate_sequence
 from visualization_msgs.msg import MarkerArray, Marker
-
+from models.msg             import Coverage
 
 def deWrapAngle(angle):
     # type: (float) -> float
@@ -105,6 +105,7 @@ class NbvPlanner():
         ymax = rospy.get_param("/workspace/y_max", 10.0)
         self.workspace = (xmin, ymin, xmax, ymax)
 
+        self.starting_pose = np.array([xmin + 1, ymin + 1, 0.0])
         # Import inflation radius
         self.inflation_radius = rospy.get_param("/map/inflation_radius", 0.5)
         self.inflation_radius_samples = rospy.get_param("/map/inflation_radius_samples", 0.75)
@@ -140,12 +141,13 @@ class NbvPlanner():
         self.pub_samples         = rospy.Publisher('/samples', MarkerArray, queue_size=10)
         self.pub_best_samples    = rospy.Publisher('/best_samples', MarkerArray, queue_size=10)
         self.pub_pose_path       = rospy.Publisher('/pose_path', MarkerArray, queue_size=10)
+        self.pub_start_scan      = rospy.Publisher('/start_scan', String, queue_size=1)
 
         # Genero tutti i subscriber
         rospy.Subscriber('/odom', Odometry, self.odom_callback)
         rospy.Subscriber('/start', String, self.start_callback)   
         rospy.Subscriber('/map', OccupancyGrid, self.map_callback)
-        rospy.Subscriber('/coverage', Float64, self.coverage_callback)
+        rospy.Subscriber('/coverage', Coverage, self.coverage_callback)
 
     def coverage_callback(self, msg): 
         """
@@ -553,7 +555,7 @@ class NbvPlanner():
                 yaw_rel = np.clip(self.K_yaw * np.rad2deg(yaw_des - self.pose[2]), -90, 90)
                 v_des   = np.clip(self.K_distance * r , -self.zeno_limits['v_surge_max']/2, self.zeno_limits['v_surge_max']/2)
 
-                if abs(r) < position_tolerance and abs(self.twist[0]) < vel_tolerance:
+                if np.linalg.norm(pose[:2] - self.pose[:2]) < position_tolerance and abs(self.twist[0]) < vel_tolerance:
                     next_phase = 'aligning'
                     rospy.loginfo("Aligning")
 
@@ -637,7 +639,38 @@ class NbvPlanner():
             if abs(self.twist[2]) < omega_tolerance:
                 return
             self.rate.sleep()
+
+    def move_to_starting_pose(self):
+
+
+        curr_pose = self.pose
+        xmin, ymin, xmax, ymax = self.workspace
+        Cx, Cy = (xmin + xmax) / 2, (ymin + ymax) / 2
+        points = [  [xmin + 1, ymin + 1],
+                    [xmin + 1, ymax - 1],
+                    [xmax - 1, ymax - 1],
+                    [xmax - 1, ymin + 1]]
+
+        distances           = np.array([np.linalg.norm(np.array(point) - curr_pose[:2]) for point in points])
+        id_min              = np.argmin(distances)
         
+        des_angle = np.arctan2(Cy - points[id_min][1], Cx - points[id_min][0])
+
+        self.starting_pose  = np.array([points[id_min][0], points[id_min][1], des_angle])
+
+        delta_pos = self.starting_pose[:2] - curr_pose[:2]
+        yaw_des   = np.arctan2(delta_pos[1], delta_pos[0])
+        yaw_rel   = np.rad2deg(yaw_des - curr_pose[2])   
+        self.rotate_to_angle(yaw_rel)
+        self.moving_to_pose(self.starting_pose)
+        self.pub_start_scan.publish("start scan")
+
+        rospy.loginfo("-------------------- %s --------------------", "perform full rotation")
+        for _ in range(3):
+            self.rotate_to_angle(120)
+        self.next_state = 'sampling'
+
+
     def run(self):
         while not rospy.is_shutdown():
             
@@ -645,7 +678,12 @@ class NbvPlanner():
             if self.curr_state == 'init':
                 
                 self.print_state()
-                self.perform_full_rotation()
+                rospy.loginfo("-------------------- %s --------------------", "moving to closest corner")
+                self.move_to_starting_pose()
+                # for _ in range(4):
+                #     self.rotate_to_angle(90)
+                # # self.perform_full_rotation()
+                # self.next_state = 'sampling'
 
             # SAMPLING: l'agente genera un albero RRT, se riesce a generarlo, passa allo stato moving_to_nbv
             elif self.curr_state == 'sampling':

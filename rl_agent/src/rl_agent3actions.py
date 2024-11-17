@@ -10,6 +10,17 @@ from sensor_msgs.msg import LaserScan
 from my_package.core.AC_v4 import AC_agent
 from joystick_command.msg   import Rel_error_joystick
 
+def wrapTo180(angle):
+    # type: (float) -> float
+    """
+    Converte l'angolo di input nell'intervallo [-180, 180].
+    Parametri:
+        angle (float): L'angolo in gradi da convertire.
+    Ritorna:
+        float: L'angolo convertito nell'intervallo [-180, 180].
+    """
+    return (angle + 180) % 360 - 180
+
 
 class Agent:
     def __init__(self):
@@ -25,6 +36,9 @@ class Agent:
         omega_max      = np.deg2rad(rospy.get_param('/zeno/vel_max/omega', 10.0))       # rad/s   
         # self.zeno_limits = {'v_surge_max': v_surge_max, 'v_sway_max': v_sway_max, 'omega_max': omega_max, 'yaw_rel_max': np.pi/4}
         self.zeno_limits = {'v_surge_max': 0.1, 'v_sway_max': 0.05, 'omega_max': omega_max, 'yaw_rel_max': np.pi/4}
+
+        self.K_distance = rospy.get_param('~my_controller/distance', 0.25)
+        self.K_yaw      = rospy.get_param('~my_controller/yaw', 1.0)
 
         # Import limiti workspace
         workspace_params = ["/workspace/x_min", "/workspace/y_min", "/workspace/x_max", "/workspace/y_max"]
@@ -42,10 +56,15 @@ class Agent:
         self.start          = False
         self.odom_recived   = False
         self.scan_received  = False
+        self.curr_state     = None
+        self.next_state     = None
+        self.prev_state     = None
 
-        self.pub            = rospy.Publisher("/debug", String, queue_size=1)
-        self.pub_rel_error  = rospy.Publisher('/relative_error', Rel_error_joystick, queue_size=10)
-        
+
+        self.pub                = rospy.Publisher("/debug", String, queue_size=1)
+        self.pub_rel_error      = rospy.Publisher('/relative_error', Rel_error_joystick, queue_size=10)
+        self.pub_start_scan     = rospy.Publisher('/start_scan', String, queue_size=1)
+
         rospy.Subscriber('/start', String, self.start_callback)
         rospy.Subscriber('/odom', Odometry, self.odom_callback)
         rospy.Subscriber('/scan', LaserScan, self.scan_callback)
@@ -83,9 +102,9 @@ class Agent:
         # Carico i pesi della rete neurale dell'attore
         self.agent.actor.load_state_dict(self.data['actor_state_dict'])
 
-
     def start_callback(self, msg):
         self.start = True
+        self.next_state = "init"
 
     def odom_callback(self, msg):
         """
@@ -123,6 +142,10 @@ class Agent:
         # Salvo i valori normalizzati 
         self.norm_pose  = np.array([x_norm, y_norm, yaw_norm])
         self.norm_twist = np.array([v_surge_norm, v_sway_norm, omega_norm])
+
+        # Salvo i valori reali
+        self.pose = np.array([x, y, yaw])
+        self.twist = np.array([v_surge, v_sway, omega])
 
     def scan_callback(self, msg):
         """
@@ -165,11 +188,156 @@ class Agent:
         
         self.pub_rel_error.publish(rel_error)
 
+    def move_to_starting_pose(self):
+
+        curr_pose = self.pose
+        xmin, ymin, xmax, ymax = self.workspace
+        Cx, Cy = (xmin + xmax) / 2, (ymin + ymax) / 2
+        points = [  [xmin + 1, ymin + 1],
+                    [xmin + 1, ymax - 1],
+                    [xmax - 1, ymax - 1],
+                    [xmax - 1, ymin + 1]]
+
+        distances = np.array([np.linalg.norm(np.array(point) - curr_pose[:2]) for point in points])
+        id_min    = np.argmin(distances)
+        
+        des_angle = np.arctan2(Cy - points[id_min][1], Cx - points[id_min][0])
+
+        self.starting_pose  = np.array([points[id_min][0], points[id_min][1], des_angle])
+
+        delta_pos = self.starting_pose[:2] - curr_pose[:2]
+        yaw_des   = np.arctan2(delta_pos[1], delta_pos[0])
+        yaw_rel   = np.rad2deg(yaw_des - curr_pose[2])   
+
+        self.rotate_to_angle(yaw_rel)
+        self.moving_to_pose(self.starting_pose)
+
+        self.pub_start_scan.publish("start scan")
+
+        rospy.loginfo("-------------------- %s --------------------", "perform full rotation")
+
+        self.next_state = 'rl_agent'
+
+    def rotate_to_angle(self, yaw_rel, angular_tolerance=5.0, omega_tolerance=0.015):
+        """
+        Funzione che fa compiere al robot una rotazione fino a raggiungere l'angolo desiderato (deg)
+        """
+        angular_delay = 12.0
+        curr_yaw = np.rad2deg(self.pose[2])
+        yaw_abs = curr_yaw + yaw_rel
+
+        if abs(yaw_rel) < angular_delay:
+            rel_error = Rel_error_joystick()
+            rel_error.error_yaw = yaw_rel
+            self.pub_rel_error.publish(rel_error)
+            rospy.sleep(1)
+        
+        else:
+            while abs(yaw_rel) > angular_delay and not rospy.is_shutdown():
+                curr_yaw    = np.rad2deg(self.pose[2])
+                yaw_rel     = wrapTo180(yaw_abs - curr_yaw)
+
+                rel_error = Rel_error_joystick()
+                rel_error.error_yaw = yaw_rel
+                self.pub_rel_error.publish(rel_error)
+                self.rate.sleep()
+        
+        rel_error = Rel_error_joystick()
+        rel_error.error_yaw = 0.0
+        self.pub_rel_error.publish(rel_error)
+        self.rate.sleep()
+
+        while not rospy.is_shutdown():
+            rel_error = Rel_error_joystick()
+            rel_error.error_yaw = 0.0
+            self.pub_rel_error.publish(rel_error)
+            yaw_rel = wrapTo180(yaw_abs - curr_yaw)
+            if abs(self.twist[2]) < omega_tolerance:
+                return
+            self.rate.sleep()
+
+    def moving_to_pose(self, pose):
+
+        sample_reached = False
+        curr_phase = 'heading'
+        next_phase = 'heading'
+        position_tolerance  = 0.25
+        vel_tolerance       = 0.02
+
+        # pose_marker = generate_pose_marker(pose, color=(1, 0, 0))
+        # self.pub_samples.publish(pose_marker)
+
+        while not sample_reached and not rospy.is_shutdown(): 
+            if curr_phase == 'heading':  
+                r_abs           = np.linalg.norm(pose[:2] - self.pose[:2])
+                delta_pos       = pose[:2] - self.pose[:2]
+                robot_direction = np.array([np.cos(self.pose[2]), np.sin(self.pose[2])])
+
+                # Movimento in avanti   se l'angolo tra la posizione attuale e quella desiderata e` compreso tra -90 e 90
+                if np.dot(delta_pos, robot_direction) >= 0:
+                    r       = r_abs
+                    yaw_des = np.arctan2(delta_pos[1], delta_pos[0])
+
+                # Se l'angolo tra la posizione attuale e quella desiderata NON e` compreso tra -90 e 90 e 
+                # la distanza e` maggiore di 2 * position_tolerance, mi riallineo
+                elif np.linalg.norm(pose[:2] - self.pose[:2]) > 2 * position_tolerance:
+                    r = 0.0
+                    yaw_des = np.arctan2(delta_pos[1], delta_pos[0])
+
+                # Movimento all'indietro se l'angolo tra la posizione attuale e quella desiderata NON e` compreso tra -90 e 90
+                # e la distanza e` minore di 2 * position_tolerance (parking)
+                else:
+                    r       = - r_abs
+                    yaw_des = np.arctan2(-delta_pos[1], -delta_pos[0])
+
+                yaw_rel = np.clip(self.K_yaw * np.rad2deg(yaw_des - self.pose[2]), -90, 90)
+                v_des   = np.clip(self.K_distance * r , -self.zeno_limits['v_surge_max'], self.zeno_limits['v_surge_max'])
+
+                if np.linalg.norm(pose[:2] - self.pose[:2]) < position_tolerance and abs(self.twist[0]) < vel_tolerance:
+                    next_phase = 'aligning'
+                    rospy.loginfo("Aligning")
+
+            elif curr_phase == 'aligning':
+                yaw_des     = pose[2]
+                curr_yaw    = self.pose[2]
+
+                yaw_rel = wrapTo180(np.rad2deg(yaw_des - curr_yaw))
+                self.rotate_to_angle(yaw_rel)
+                return
+                   
+            # Mando i comandi al robot
+            rel_error = Rel_error_joystick()
+            rel_error.error_yaw         = yaw_rel
+            rel_error.error_surge_speed = v_des
+            self.pub_rel_error.publish(rel_error)
+
+            # Aggiorno la fase corrente
+            curr_phase = next_phase
+
+            # Aspetto il rate
+            self.rate.sleep()
+
+
     def run(self):
         while not rospy.is_shutdown():
-            if self.start:
+            
+
+
+            # if self.start:
+
+            #     if self.odom_recived and self.scan_received:
+            #         self.send_commands()
+            if self.curr_state == "init":
+                if self.odom_recived:
+                    self.move_to_starting_pose()
+
+            elif self.curr_state == "rl_agent":
                 if self.odom_recived and self.scan_received:
                     self.send_commands()
+
+            # Update macchina a stati
+            self.prev_state = self.curr_state
+            self.curr_state = self.next_state
             self.rate.sleep()
 
 
