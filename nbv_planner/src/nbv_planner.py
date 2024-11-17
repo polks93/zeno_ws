@@ -73,7 +73,8 @@ class NbvPlanner():
         w_frontier              = rospy.get_param('/weights/frontier', 0.1)
         w_contour               = rospy.get_param('/weights/contour', 0.9)
         w_occupied              = rospy.get_param('/weights/occupied', 0.0)
-        self.sample_weights     = {'frontier': w_frontier, 'contour': w_contour, 'occupied': w_occupied}
+        w_waypoints             = rospy.get_param('/weights/waypoints', 0.0)
+        self.sample_weights     = {'frontier': w_frontier, 'contour': w_contour, 'occupied': w_occupied, 'waypoints': w_waypoints}
         
         # Import parametri del controllore simulato per RRT
         K_yaw   = rospy.get_param('/zeno/sim_controller/yaw', 20.0)
@@ -118,6 +119,7 @@ class NbvPlanner():
         self.curr_state         = None
         self.prev_state         = None
         self.next_state         = None
+        self.visted_wp          = []
 
         self.publish_cell_on    = True
         self.publish_map_on     = True
@@ -372,6 +374,8 @@ class NbvPlanner():
         id_best_sample      = np.argmax(value_function)
         # best_sample         = samples[id_best_sample]
 
+        self.visted_wp.append(samples[id_best_sample][:2])
+
         # Pubblico i marker relativi ai campioni
         if self.publish_samples_on:
             self.publish_samples_markers(samples, value_function)
@@ -430,11 +434,22 @@ class NbvPlanner():
         N_max_contour   = max(len(max_contour_cells), 1)
         N_max_occ       = max(len(max_occ_cells), 1)
 
+        near_wp = []
+        if len(self.visted_wp) > 0:
+            for point in self.visted_wp:
+                if np.linalg.norm(point - self.pose[:2]) < self.sampling_params['R'] + self.lidar_params['max_range']:
+                    near_wp.append(point)
+
+        rospy.loginfo("Near waypoints: %d", len(near_wp))
+        N_max_waypoints = max(len(near_wp), 1)  
+
+
         # Inizializzo il valore della funzione obiettivo per ogni campione
         value_function = np.zeros(len(samples))
         w_f         = self.sample_weights['frontier']
         w_c         = self.sample_weights['contour']
         w_occ       = self.sample_weights['occupied']
+        w_wp        = self.sample_weights['waypoints']
         w_distance  = 0.0
 
         if len(max_occ_cells) == 0 and len(max_contour_cells) == 0:
@@ -452,8 +467,18 @@ class NbvPlanner():
             N_occ       = len(occ_cells)
 
             distance    = np.linalg.norm(samples[i][:2] - self.pose[:2])
-
-            value_function[i] = w_f * N_frontier/N_max_frontier + w_c * N_contour/N_max_contour + w_occ * N_occ/N_max_occ + w_distance * distance/self.sampling_params['R']
+            
+            N_wp = 0
+            if len(self.visted_wp) > 0:
+                for point in self.visted_wp:
+                    if np.linalg.norm(point - samples[i][:2]) < self.lidar_params['max_range']/2:
+                        N_wp += 1
+            rospy.loginfo("Waypoints: %d", N_wp)
+            value_function[i] = w_f * N_frontier/N_max_frontier + \
+                                w_c * N_contour/N_max_contour + \
+                                w_occ * N_occ/N_max_occ + \
+                                w_distance * distance/self.sampling_params['R'] + \
+                                w_wp * (1 - N_wp/N_max_waypoints)
 
         return value_function
 
@@ -674,16 +699,13 @@ class NbvPlanner():
     def run(self):
         while not rospy.is_shutdown():
             
-            # INIT: l'agente fa un giro completo su se stesso
+            # INIT: l'agente si muove verso la posizione iniziale e fa un giro completo su se stesso
             if self.curr_state == 'init':
                 
                 self.print_state()
                 rospy.loginfo("-------------------- %s --------------------", "moving to closest corner")
                 self.move_to_starting_pose()
-                # for _ in range(4):
-                #     self.rotate_to_angle(90)
-                # # self.perform_full_rotation()
-                # self.next_state = 'sampling'
+
 
             # SAMPLING: l'agente genera un albero RRT, se riesce a generarlo, passa allo stato moving_to_nbv
             elif self.curr_state == 'sampling':

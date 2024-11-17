@@ -5,9 +5,14 @@ sampling:
   max_counter: 100  # Numero massimo di tentativi di generazione di un campione
 
 weights:
-  frontier:   0.15
-  contour:    0.7
-  occupied:   0.15
+  # frontier:   0.15
+  # contour:    0.7
+  # occupied:   0.15
+  # waypoints:  0.0  
+  frontier:   0.1
+  contour:    0.6
+  occupied:   0.1
+  waypoints:  0.2
 
 map:
   inflation_radius: 0.5           # Raggio di inflazione della mappa usato in navigazione

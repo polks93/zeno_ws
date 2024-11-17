@@ -32,10 +32,10 @@
 
 
     <!-- ROSBAG -->
-    <include file="$(find models)/launch/rosbag.launch" >
+    <!-- <include file="$(find models)/launch/rosbag.launch" >
         <arg name="path" value="/media/paolo/kingstone" />
         <arg name="base_name" value="NBV_bag" />
-    </include>
+    </include> -->
 
 <!-- ROSBAG
 <node pkg args="-e (topic da registrare) -x (esclude) -a (tutte)">
