@@ -9,6 +9,7 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
 from my_package.core.AC_v4 import AC_agent
 from joystick_command.msg   import Rel_error_joystick
+from models.msg import Coverage
 
 def wrapTo180(angle):
     # type: (float) -> float
@@ -59,16 +60,17 @@ class Agent:
         self.curr_state     = None
         self.next_state     = None
         self.prev_state     = None
-
+        self.data_saved     = False
 
         self.pub                = rospy.Publisher("/debug", String, queue_size=1)
         self.pub_rel_error      = rospy.Publisher('/relative_error', Rel_error_joystick, queue_size=10)
         self.pub_start_scan     = rospy.Publisher('/start_scan', String, queue_size=1)
+        self.pub_save_data      = rospy.Publisher('/save_data', String, queue_size=1)
 
         rospy.Subscriber('/start', String, self.start_callback)
         rospy.Subscriber('/odom', Odometry, self.odom_callback)
         rospy.Subscriber('/scan', LaserScan, self.scan_callback)
-
+        rospy.Subscriber('/coverage', Coverage, self.coverage_callback)
         self.init_AC_agent()
 
     def init_AC_agent(self):
@@ -106,6 +108,10 @@ class Agent:
         self.start = True
         self.next_state = "init"
 
+    def coverage_callback(self, msg):
+        if msg.data == 100.0 and self.data_saved == False:
+            self.pub_save_data.publish("save data")
+            self.data_saved = True
     def odom_callback(self, msg):
         """
         Callback function for the odometry topic.

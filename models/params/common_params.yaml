@@ -8,7 +8,8 @@ lidar:
 ship:
   # center: [12.5, 15.0]
   # center: [7.5, 7.5]
-  scale: 1.5
+  # scale: 1.5  # TEST 1
+  scale: 3.0 # TEST 2
 
 # workspace:
 #   x_min: -1.0
@@ -32,3 +33,5 @@ zeno:
     omega: 50.0
     surge: 0.25
     sway: 0.25
+
+  footprint: 0.5 # m

@@ -144,6 +144,7 @@ class NbvPlanner():
         self.pub_best_samples    = rospy.Publisher('/best_samples', MarkerArray, queue_size=10)
         self.pub_pose_path       = rospy.Publisher('/pose_path', MarkerArray, queue_size=10)
         self.pub_start_scan      = rospy.Publisher('/start_scan', String, queue_size=1)
+        self.pub_save_data       = rospy.Publisher('/save_data', String, queue_size=1) 
 
         # Genero tutti i subscriber
         rospy.Subscriber('/odom', Odometry, self.odom_callback)
@@ -251,6 +252,7 @@ class NbvPlanner():
 
         yaw_rel = np.clip(yaw_rel, -90, 90)
         rel_error = Rel_error_joystick()
+        rel_error.header.stamp = rospy.Time.now()
         rel_error.error_yaw = yaw_rel
         self.pub_rel_error.publish(rel_error)
 
@@ -440,7 +442,6 @@ class NbvPlanner():
                 if np.linalg.norm(point - self.pose[:2]) < self.sampling_params['R'] + self.lidar_params['max_range']:
                     near_wp.append(point)
 
-        rospy.loginfo("Near waypoints: %d", len(near_wp))
         N_max_waypoints = max(len(near_wp), 1)  
 
 
@@ -473,7 +474,8 @@ class NbvPlanner():
                 for point in self.visted_wp:
                     if np.linalg.norm(point - samples[i][:2]) < self.lidar_params['max_range']/2:
                         N_wp += 1
-            rospy.loginfo("Waypoints: %d", N_wp)
+
+                        
             value_function[i] = w_f * N_frontier/N_max_frontier + \
                                 w_c * N_contour/N_max_contour + \
                                 w_occ * N_occ/N_max_occ + \
@@ -534,6 +536,7 @@ class NbvPlanner():
 
                     # Mando i comandi al robot
                     rel_error = Rel_error_joystick()
+                    rel_error.header.stamp      = rospy.Time.now()
                     rel_error.error_yaw         = yaw_rel
                     rel_error.error_surge_speed = v_des
                     self.pub_rel_error.publish(rel_error)
@@ -594,6 +597,7 @@ class NbvPlanner():
                    
             # Mando i comandi al robot
             rel_error = Rel_error_joystick()
+            rel_error.header.stamp      = rospy.Time.now()
             rel_error.error_yaw         = yaw_rel
             rel_error.error_surge_speed = v_des
             self.pub_rel_error.publish(rel_error)
@@ -637,6 +641,7 @@ class NbvPlanner():
 
         if abs(yaw_rel) < angular_delay:
             rel_error = Rel_error_joystick()
+            rel_error.header.stamp = rospy.Time.now()
             rel_error.error_yaw = yaw_rel
             self.pub_rel_error.publish(rel_error)
             rospy.sleep(1)
@@ -647,17 +652,20 @@ class NbvPlanner():
                 yaw_rel     = wrapTo180(yaw_abs - curr_yaw)
 
                 rel_error = Rel_error_joystick()
+                rel_error.header.stamp = rospy.Time.now()
                 rel_error.error_yaw = yaw_rel
                 self.pub_rel_error.publish(rel_error)
                 self.rate.sleep()
         
         rel_error = Rel_error_joystick()
+        rel_error.header.stamp = rospy.Time.now()
         rel_error.error_yaw = 0.0
         self.pub_rel_error.publish(rel_error)
         self.rate.sleep()
 
         while not rospy.is_shutdown():
             rel_error = Rel_error_joystick()
+            rel_error.header.stamp = rospy.Time.now()
             rel_error.error_yaw = 0.0
             self.pub_rel_error.publish(rel_error)
             yaw_rel = wrapTo180(yaw_abs - curr_yaw)
@@ -741,11 +749,13 @@ class NbvPlanner():
 
             # DONE: la missione e` completata, termino il nodo
             elif self.curr_state == 'done':
+                self.pub_save_data.publish("save")
                 rospy.loginfo("Mission completed, shutting down ....")
                 rospy.signal_shutdown("Mission completed")
             
             # ABORT: la missione e` fallita, termino il nodo
             elif self.curr_state == 'abort':
+                self.pub_save_data.publish("save")
                 rospy.logerr("Mission aborted, shutting down ....")
                 rospy.signal_shutdown("Mission aborted")
 

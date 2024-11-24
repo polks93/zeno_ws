@@ -24,8 +24,14 @@
         <remap from="relative_error"            to="nbv/relative_error" />
     </node>
 
+    <!-- <node pkg="common_fun" type="record_nbv_data.py" name="record_nbv_data" output="screen" /> -->
+
+
+
     <!-- Visualizzazione workspace -->
     <node pkg="common_fun" type="workspace_pub.py" name="workspace_pub" output="screen"/>
+
+
 
     <!-- Rviz -->
     <node pkg="rviz" type="rviz" name="rviz" output="screen" args="-d $(find models)/config/zeno_simulator.rviz"/>

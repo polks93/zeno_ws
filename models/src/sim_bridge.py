@@ -33,13 +33,13 @@ class SimBridge():
         rospy.Subscriber('/nav_status', NavStatus, self.nav_status_callback)
         rospy.Subscriber('/start_bridge', String, self.start_callback)
 
-        with open("/home/paolo/catkin_ws/src/models/params/laghetti/P1.yaml", 'r') as file:
+        with open("/home/paolo/catkin_ws/src/models/params/laghetti2/P1.yaml", 'r') as file:
             Pmin = yaml.safe_load(file)
             lat_min = Pmin['latitude']
             lon_min = Pmin['longitude']
             self.Pmin = fromLatLong(lat_min, lon_min)
 
-        with open("/home/paolo/catkin_ws/src/models/params/laghetti/P2.yaml", 'r') as file:
+        with open("/home/paolo/catkin_ws/src/models/params/laghetti2/P2.yaml", 'r') as file:
             Pmax = yaml.safe_load(file)
             lat_max = Pmax['latitude']
             lon_max = Pmax['longitude']

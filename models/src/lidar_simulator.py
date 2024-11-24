@@ -37,11 +37,15 @@ class Lidar_sim():
         self.min_range      = rospy.get_param('/lidar/min_range', 0.1)
         FoV_deg             = rospy.get_param('/lidar/FoV', 360.0)
 
+        self.footprint      = rospy.get_param('/zeno/footprint', 0.25)
+        rospy.loginfo("Footprint: {}".format(self.footprint))
+
         # ship_center         = rospy.get_param('/ship/center', (0,0))
         ship_scale_factor   = rospy.get_param('/ship/scale', 0.9)
 
         self.scan_time      = 1.0 / self.Hz
         self.rate           = rospy.Rate(self.Hz)
+        self.counter        = 0
 
         self.lidar_params   = {'n_beams': n_beams, 'max_range': max_range, 'FoV': np.deg2rad(FoV_deg)}
 
@@ -57,7 +61,7 @@ class Lidar_sim():
         self.ymax                = rospy.get_param("/workspace/y_max", 10.0)
 
         ship_center         = ((self.xmin + self.xmax) / 2, (self.ymin + self.ymax) / 2)
-        self.obstacle       = ShipObstacle(ship_center, scale=ship_scale_factor)
+        self.obstacle       = ShipObstacle(ship_center, scale=ship_scale_factor, inflation_radius=self.footprint)
         self.segments       = self.obstacle.copy_segments()
         self.n_segments     = len(self.segments)
         self.pose           = None
@@ -159,7 +163,20 @@ class Lidar_sim():
     def collision_check(self):
         x = self.pose[0]
         y = self.pose[1]
-        
+        Cx_ship, Cy_ship = self.obstacle.center
+
+        if np.linalg.norm([x - Cx_ship, y - Cy_ship]) > self.obstacle.radius + self.footprint:
+            return 
+        else:
+            collision = self.obstacle.point_in_ship(point=[x,y])
+
+            if collision:
+                msg = String()
+                msg.data = "Collision"
+                self.pub_abort.publish(msg)
+                rospy.logwarn("Collision detected")
+                return
+            
     def run(self):
         """
         Esegue il ciclo principale del nodo ROS.
@@ -167,10 +184,14 @@ class Lidar_sim():
         Durante ogni iterazione del ciclo, se l'attributo 'pose' non e' None, chiama il metodo 'publish_lidar_data'.
         Alla fine di ogni iterazione, il ciclo attende per un intervallo di tempo specificato dall'attributo `rate`.
         """
+        
         while not rospy.is_shutdown():
+            self.counter += 1
             if self.pose is not None and self.start:
                 self.publish_lidar_data()
                 self.out_of_bounds_check()
+                if self.counter % 10 == 0:
+                    self.collision_check
             self.rate.sleep()
 
 

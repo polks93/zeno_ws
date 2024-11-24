@@ -267,11 +267,11 @@ def find_visible_cells(pose, lidar_parms, map):
     visible_cells = np.array(list(visible_cells))
     return visible_cells
 
-def find_neighbors(cell, map):
+def find_neighbors(cell, map, distance=1):
     neighbors = []
     row, col = cell
-    for i in range(-1, 2):
-        for j in range(-1, 2):
+    for i in range(- distance, 1 + distance):
+        for j in range(- distance, 1 + distance):
             if i == 0 and j == 0:
                 continue
             # elif row + i < 0 or row + i > map.height + 1 or col + j < 0 or col + j > map.width + 1:
@@ -307,7 +307,7 @@ def find_contour_cells(map, visible_cells):
             occupied = False
             # Cerco le celle sconosciute in visible_cells
             if map.get_cell(cell) == -1:
-                neighbors = find_neighbors(cell, map)
+                neighbors = find_neighbors(cell, map, distance=2)
                 
                 # Cerco i vicini delle celle libere che siano di occupazione sconosciuta
                 for neighbor in neighbors:

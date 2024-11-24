@@ -141,7 +141,7 @@ def generate_random_state(R, curr_state, workspace, map):
 
     return np.array([x, y])
 
-def generate_new_node(nearest_pose, nearest_twist, sample, T_max, unicycle_params, control_params, map, samples_map, workspace, dt=0.1):
+def generate_new_node(nearest_pose, nearest_twist, sample, T_max, unicycle_params, control_params, map, samples_map, workspace, curr_pose, R, dt=0.1):
     """
     Genera un nuovo nodo a partire dallo stato piu` vicino e un campione.
     Args:
@@ -221,6 +221,10 @@ def generate_new_node(nearest_pose, nearest_twist, sample, T_max, unicycle_param
         if not boundary_check(workspace, x, y):
             return np.array([]), np.array([]), np.array([]), False
         
+        # Check path fuori dal raggio massimo
+        if np.linalg.norm([x,y] - curr_pose[:2]) > R:
+            return np.array([]), np.array([]), np.array([]), False
+
         # Check collisione con cella occupata o sconosciuta  
         cell = map.world_to_grid([x, y])
         if map.get_cell(cell) == -1 or map.get_cell(cell) == 100:
@@ -316,7 +320,17 @@ def generate_RRT_samples(workspace, map, samples_map, curr_pose, sampling_params
         
         # Cerco di generare un nuovo nodo valido verso il campione
         # In questa fase uso la mappa con il raggio di inflazione piu` piccolo
-        new_node_pose, new_node_twist, path_to_node, node_found = generate_new_node(nearest_pose, nearest_twist, sample, T_max, kinematics_params, control_params, map, samples_map, workspace)
+        new_node_pose, new_node_twist, path_to_node, node_found = generate_new_node(nearest_pose, 
+                                                                                    nearest_twist, 
+                                                                                    sample, 
+                                                                                    T_max, 
+                                                                                    kinematics_params, 
+                                                                                    control_params, 
+                                                                                    map, 
+                                                                                    samples_map, 
+                                                                                    workspace, 
+                                                                                    curr_pose,
+                                                                                    R)
         
         # Se il nodo e` valido, lo aggiungo all'albero, altrimenti continuo con il prossimo campione
         if node_found:

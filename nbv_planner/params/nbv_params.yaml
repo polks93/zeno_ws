@@ -2,17 +2,17 @@ sampling:
   R: 5.0           # Raggio di ricerca dei campioni
   N_samples: 50     # Numero di campioni da generare
   T_max: 3.0        # Tempo di simulazione verso il nuovo nodo
-  max_counter: 100  # Numero massimo di tentativi di generazione di un campione
+  max_counter: 150  # Numero massimo di tentativi di generazione di un campione
 
 weights:
   # frontier:   0.15
   # contour:    0.7
   # occupied:   0.15
   # waypoints:  0.0  
-  frontier:   0.1
-  contour:    0.6
-  occupied:   0.1
-  waypoints:  0.2
+  frontier:   0.075
+  contour:    0.8
+  occupied:   0.025
+  waypoints:  0.1
 
 map:
   inflation_radius: 0.5           # Raggio di inflazione della mappa usato in navigazione
