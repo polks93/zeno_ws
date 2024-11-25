@@ -9,6 +9,88 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float64, String
 from models.msg import Coverage
+from visualization_msgs.msg import Marker, MarkerArray
+from geometry_msgs.msg import Point
+
+def create_zeno_marker(x, y, radius, marker_id=0, lifetime=0):
+    """
+    Crea un marker circolare per Rviz.
+
+    Args:
+        x (float): Coordinata x del centro del cerchio.
+        y (float): Coordinata y del centro del cerchio.
+        radius (float): Raggio del cerchio.
+        frame_id (str): Nome del frame di riferimento.
+        marker_id (int): ID univoco del marker.
+        lifetime (float): Durata del marker in secondi (0 per infinito).
+
+    Returns:
+        Marker: Oggetto Marker configurato.
+    """
+    marker = Marker()
+    marker.header.frame_id = 'map'
+    marker.header.stamp = rospy.Time.now()
+    marker.ns = "zeno_marker"
+    marker.id = marker_id
+    marker.type = Marker.LINE_STRIP
+    marker.action = Marker.ADD
+    marker.scale.x = 0.2  # Spessore della linea
+
+    # Colore del marker (RGBA)
+    marker.color.r = 1.0
+    marker.color.g = 0.0
+    marker.color.b = 0.0
+    marker.color.a = 1.0
+
+    # Durata del marker (0 per infinito)
+    marker.lifetime = rospy.Duration(lifetime)
+
+    # Calcolo dei punti del cerchio
+    points = []
+    num_points = 50  # Maggiore il il numero, piu "liscio" sara il cerchio
+    for i in range(num_points + 1):
+        angle = 2 * 3.14159 * i / num_points
+        point = Point()
+        point.x = x + radius * np.cos(angle)
+        point.y = y + radius * np.sin(angle)
+        point.z = 0  # Z fisso per il 2D
+        points.append(point)
+
+    marker.points = points
+
+    return marker
+
+def create_markers_msg(points, color=[1.0, 0.0, 0.0]):
+    """Crea un messaggio MarkerArray a partire dalle celle visibili."""
+    marker_array = MarkerArray()
+
+    
+    x, y = zip(*points)
+    z = 0.0
+
+    for i in range(len(x)):
+        marker = Marker()
+        marker.header.frame_id = "map"
+        marker.header.stamp = rospy.Time.now()
+        marker.ns = "ship_points"
+        marker.id = i
+        marker.type = Marker.CUBE
+        marker.action = Marker.ADD
+        marker.pose.position.x = x[i]
+        marker.pose.position.y = y[i]
+        marker.pose.position.z = z
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = 0.5
+        marker.scale.y = 0.5
+        marker.scale.z = 0.5
+        marker.color.a = 1  # Opacita
+        marker.color.r = color[0]  
+        marker.color.g = color[1]
+        marker.color.b = color[2]
+        marker_array.markers.append(marker)
+    return marker_array
+
+
 
 class Lidar_sim():
     """
@@ -73,7 +155,8 @@ class Lidar_sim():
         self.pub_lidar      = rospy.Publisher("/scan", LaserScan, queue_size=1)
         self.pub_coverage   = rospy.Publisher("/coverage", Coverage, queue_size=1)
         self.pub_abort      = rospy.Publisher("/abort", String, queue_size=1)
-
+        self.pub_markers   = rospy.Publisher("/ship_markers", MarkerArray, queue_size=1)
+        self.pub_zeno_marker = rospy.Publisher("/zeno_marker", Marker, queue_size=1)
     def start_callback(self, msg):
         self.start = True
 
@@ -151,6 +234,21 @@ class Lidar_sim():
         self.pub_coverage.publish(coverage_msg)
 
 
+    def publish_ship_marker(self):
+        """
+        Pubblica un marker RViz per visualizzare la forma dell'ostacolo ShipObstacle.
+        """
+        points = self.obstacle.points
+        markers = create_markers_msg(points)
+        self.pub_markers.publish(markers)
+
+    def publish_zeno_marker(self):
+        if self.pose is not None:
+            x = self.pose[0]
+            y = self.pose[1]
+            zeno_marker = create_zeno_marker(x, y, 0.5)
+            self.pub_zeno_marker.publish(zeno_marker)
+
     def out_of_bounds_check(self):
         x = self.pose[0]
         y = self.pose[1]
@@ -187,6 +285,8 @@ class Lidar_sim():
         
         while not rospy.is_shutdown():
             self.counter += 1
+            self.publish_ship_marker()
+            self.publish_zeno_marker()
             if self.pose is not None and self.start:
                 self.publish_lidar_data()
                 self.out_of_bounds_check()
