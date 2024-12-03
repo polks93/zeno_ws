@@ -122,9 +122,10 @@ class NbvPlanner():
         self.visted_wp          = []
 
         self.publish_cell_on    = True
-        self.publish_map_on     = True
+        self.publish_map_on     = False
         self.publish_samples_on = True
         self.publish_path_on    = True
+        self.stop               = False
 
         # Dizionario relativo alle informazioni di recovery
         self.recovery_info = {
@@ -151,6 +152,24 @@ class NbvPlanner():
         rospy.Subscriber('/start', String, self.start_callback)   
         rospy.Subscriber('/map', OccupancyGrid, self.map_callback)
         rospy.Subscriber('/coverage', Coverage, self.coverage_callback)
+        rospy.Subscriber('/continue', String, self.continue_callback)
+
+    def continue_callback(self, msg):
+        self.stop = False
+
+
+    def wait_for_input(self):
+        """
+        Funzione che aspetta l'input da tastiera
+        """
+        self.stop = True
+        while not rospy.is_shutdown():
+            if self.stop:
+                rospy.loginfo("Waiting for input ...")
+                self.rate.sleep()
+            else:
+                break
+
 
     def coverage_callback(self, msg): 
         """
@@ -714,15 +733,13 @@ class NbvPlanner():
                 rospy.loginfo("-------------------- %s --------------------", "moving to closest corner")
                 self.move_to_starting_pose()
 
-
             # SAMPLING: l'agente genera un albero RRT, se riesce a generarlo, passa allo stato moving_to_nbv
             elif self.curr_state == 'sampling':
                 self.print_state()
                 id_best_sample, tree = self.sampling()
-
                 if self.next_state == 'moving_to_nbv':
                     sequence = generate_sequence(tree, id_best_sample)
-            
+                
             # MOVING_TO_NBV: l'agente si muove verso la Next Best View passando per le pose intermedie
             elif self.curr_state == 'moving_to_nbv':   
                 self.print_state()
@@ -732,8 +749,10 @@ class NbvPlanner():
             # RECOVERING: l'agente effettua delle rotazioni di recovery, poi torna allo stato di sampling
             elif self.curr_state == 'recovering':
                 self.print_state()
+                # self.wait_for_input()
                 self.handle_recovery()
-            
+                # self.wait_for_input()
+
             elif self.curr_state == 'test':
                 rospy.loginfo("Rotation start")
                 self.rotate_to_angle(self.test_angle)

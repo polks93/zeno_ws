@@ -130,7 +130,7 @@ class RecordData:
         yaw_rel = np.array(self.yaw_rel_values)
         rospy.loginfo("Saving data")
         
-        np.savez("RL_data2/sim_data", 
+        np.savez("RL_data/sim_data", 
                  abort_timestamps=abort_timestamps,
                  abort_values=abort_values,
                  coverage_timestamps=coverage_timestamps, 

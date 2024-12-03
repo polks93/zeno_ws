@@ -8,9 +8,9 @@ lidar:
 ship:
   # center: [12.5, 15.0]
   # center: [7.5, 7.5]
-  # scale: 1.5  # TEST 1
-  scale: 3.0 # TEST 2
-
+  scale: 1.5  # TEST 1 e 3
+  # scale: 3.0 # TEST 2
+  custom_ship: True
 # workspace:
 #   x_min: -1.0
 #   x_max: 14.0

@@ -9,9 +9,9 @@ weights:
   # contour:    0.7
   # occupied:   0.15
   # waypoints:  0.0  
-  frontier:   0.075
+  frontier:   0.06
   contour:    0.8
-  occupied:   0.025
+  occupied:   0.04
   waypoints:  0.1
 
 map:

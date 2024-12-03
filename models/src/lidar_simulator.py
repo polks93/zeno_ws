@@ -12,15 +12,62 @@ from models.msg import Coverage
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point
 
+# def create_zeno_marker(x, y, radius, marker_id=0, lifetime=0):
+#     """
+#     Crea un marker circolare per Rviz.
+
+#     Args:
+#         x (float): Coordinata x del centro del cerchio.
+#         y (float): Coordinata y del centro del cerchio.
+#         radius (float): Raggio del cerchio.
+#         frame_id (str): Nome del frame di riferimento.
+#         marker_id (int): ID univoco del marker.
+#         lifetime (float): Durata del marker in secondi (0 per infinito).
+
+#     Returns:
+#         Marker: Oggetto Marker configurato.
+#     """
+#     marker = Marker()
+#     marker.header.frame_id = 'map'
+#     marker.header.stamp = rospy.Time.now()
+#     marker.ns = "zeno_marker"
+#     marker.id = marker_id
+#     marker.type = Marker.LINE_STRIP
+#     marker.action = Marker.ADD
+#     marker.scale.x = 0.2  # Spessore della linea
+
+#     # Colore del marker (RGBA)
+#     marker.color.r = 1.0
+#     marker.color.g = 0.0
+#     marker.color.b = 0.0
+#     marker.color.a = 1.0
+
+#     # Durata del marker (0 per infinito)
+#     marker.lifetime = rospy.Duration(lifetime)
+
+#     # Calcolo dei punti del cerchio
+#     points = []
+#     num_points = 50  # Maggiore il il numero, piu "liscio" sara il cerchio
+#     for i in range(num_points + 1):
+#         angle = 2 * 3.14159 * i / num_points
+#         point = Point()
+#         point.x = x + radius * np.cos(angle)
+#         point.y = y + radius * np.sin(angle)
+#         point.z = 0  # Z fisso per il 2D
+#         points.append(point)
+
+#     marker.points = points
+
+#     return marker
+
 def create_zeno_marker(x, y, radius, marker_id=0, lifetime=0):
     """
-    Crea un marker circolare per Rviz.
+    Crea un marker circolare (cilindrico) per Rviz.
 
     Args:
         x (float): Coordinata x del centro del cerchio.
         y (float): Coordinata y del centro del cerchio.
         radius (float): Raggio del cerchio.
-        frame_id (str): Nome del frame di riferimento.
         marker_id (int): ID univoco del marker.
         lifetime (float): Durata del marker in secondi (0 per infinito).
 
@@ -32,31 +79,33 @@ def create_zeno_marker(x, y, radius, marker_id=0, lifetime=0):
     marker.header.stamp = rospy.Time.now()
     marker.ns = "zeno_marker"
     marker.id = marker_id
-    marker.type = Marker.LINE_STRIP
+    marker.type = Marker.CYLINDER  # Tipo cilindro per un marker circolare
     marker.action = Marker.ADD
-    marker.scale.x = 0.2  # Spessore della linea
+
+    # Posizione del centro del marker
+    marker.pose.position.x = x
+    marker.pose.position.y = y
+    marker.pose.position.z = 0  # Z fisso per il piano 2D
+
+    # Orientamento del marker (default: nessuna rotazione)
+    marker.pose.orientation.x = 0.0
+    marker.pose.orientation.y = 0.0
+    marker.pose.orientation.z = 0.0
+    marker.pose.orientation.w = 1.0
+
+    # Dimensioni del cilindro
+    marker.scale.x = 2 * radius  # Diametro sul piano x
+    marker.scale.y = 2 * radius  # Diametro sul piano y
+    marker.scale.z = 0.01  # Altezza minima per simulare un cerchio sul piano
 
     # Colore del marker (RGBA)
     marker.color.r = 1.0
-    marker.color.g = 0.0
+    marker.color.g = 1.0
     marker.color.b = 0.0
     marker.color.a = 1.0
 
     # Durata del marker (0 per infinito)
     marker.lifetime = rospy.Duration(lifetime)
-
-    # Calcolo dei punti del cerchio
-    points = []
-    num_points = 50  # Maggiore il il numero, piu "liscio" sara il cerchio
-    for i in range(num_points + 1):
-        angle = 2 * 3.14159 * i / num_points
-        point = Point()
-        point.x = x + radius * np.cos(angle)
-        point.y = y + radius * np.sin(angle)
-        point.z = 0  # Z fisso per il 2D
-        points.append(point)
-
-    marker.points = points
 
     return marker
 
@@ -80,9 +129,9 @@ def create_markers_msg(points, color=[1.0, 0.0, 0.0]):
         marker.pose.position.y = y[i]
         marker.pose.position.z = z
         marker.pose.orientation.w = 1.0
-        marker.scale.x = 0.5
-        marker.scale.y = 0.5
-        marker.scale.z = 0.5
+        marker.scale.x = 0.25
+        marker.scale.y = 0.25
+        marker.scale.z = 0.25
         marker.color.a = 1  # Opacita
         marker.color.r = color[0]  
         marker.color.g = color[1]
@@ -124,6 +173,7 @@ class Lidar_sim():
 
         # ship_center         = rospy.get_param('/ship/center', (0,0))
         ship_scale_factor   = rospy.get_param('/ship/scale', 0.9)
+        self.custom_ship         = rospy.get_param('/ship/custom_ship', False)
 
         self.scan_time      = 1.0 / self.Hz
         self.rate           = rospy.Rate(self.Hz)
@@ -143,11 +193,16 @@ class Lidar_sim():
         self.ymax                = rospy.get_param("/workspace/y_max", 10.0)
 
         ship_center         = ((self.xmin + self.xmax) / 2, (self.ymin + self.ymax) / 2)
-        self.obstacle       = ShipObstacle(ship_center, scale=ship_scale_factor, inflation_radius=self.footprint)
+
+        self.obstacle       = ShipObstacle(ship_center, scale=ship_scale_factor, inflation_radius=self.footprint, use_custom_ship=self.custom_ship)
+        # if self.custom_ship:
+        #     self.obstacle.rototranslate_ship(-np.pi/4, (0.5,-0.5))
+
         self.segments       = self.obstacle.copy_segments()
         self.n_segments     = len(self.segments)
         self.pose           = None
         self.start          = False
+        self.enable_pub_marker = True
 
         rospy.Subscriber("/start_scan", String, self.start_callback)
         rospy.Subscriber("/odom", Odometry, self.odom_callback)
@@ -246,7 +301,7 @@ class Lidar_sim():
         if self.pose is not None:
             x = self.pose[0]
             y = self.pose[1]
-            zeno_marker = create_zeno_marker(x, y, 0.5)
+            zeno_marker = create_zeno_marker(x, y, self.footprint)
             self.pub_zeno_marker.publish(zeno_marker)
 
     def out_of_bounds_check(self):
@@ -266,7 +321,11 @@ class Lidar_sim():
         if np.linalg.norm([x - Cx_ship, y - Cy_ship]) > self.obstacle.radius + self.footprint:
             return 
         else:
-            collision = self.obstacle.point_in_ship(point=[x,y])
+
+            if self.custom_ship:
+                collision = self.obstacle.point_in_custom_ship(point=[x,y])
+            else:
+                collision = self.obstacle.point_in_ship(point=[x,y])
 
             if collision:
                 msg = String()
@@ -285,13 +344,15 @@ class Lidar_sim():
         
         while not rospy.is_shutdown():
             self.counter += 1
-            self.publish_ship_marker()
-            self.publish_zeno_marker()
+            if self.enable_pub_marker:
+                self.publish_ship_marker()
+                self.publish_zeno_marker()
+                
             if self.pose is not None and self.start:
                 self.publish_lidar_data()
                 self.out_of_bounds_check()
                 if self.counter % 10 == 0:
-                    self.collision_check
+                    self.collision_check()
             self.rate.sleep()
 
 

@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
-    data_path = "/home/paolo/NBV_data/sim_data16.npz"
+    data_path = "/home/paolo/NBV_data3/sim_data.npz"
     data = np.load(data_path)
 
     """ Limiti del workspace """
